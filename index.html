@@ -178,6 +178,10 @@
             border-radius: 8px;
             margin-bottom: 15px;
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
         }
 
         .cpf-card:hover {
@@ -185,16 +189,19 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .cpf-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-            gap: 10px;
+        .cpf-card .cpf-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            flex-shrink: 0;
         }
 
-        .cpf-number {
+        .cpf-card .cpf-info {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .cpf-card .cpf-number {
             font-size: 1.1rem;
             font-weight: bold;
             color: #333;
@@ -203,18 +210,20 @@
             padding: 4px 10px;
             border-radius: 6px;
             border: 1px solid #ddd;
+            display: inline-block;
         }
 
-        .hours-badge {
+        .cpf-card .hours-badge {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 6px 16px;
             border-radius: 20px;
             font-weight: bold;
             font-size: 1.1rem;
+            white-space: nowrap;
         }
 
-        .registers-count {
+        .cpf-card .registers-count {
             background: #e3e8ff;
             color: #667eea;
             padding: 2px 8px;
@@ -306,9 +315,9 @@
         }
 
         @media (max-width: 768px) {
-            .cpf-header {
+            .cpf-card {
                 flex-direction: column;
-                align-items: flex-start;
+                align-items: stretch;
             }
             table {
                 font-size: 0.8rem;
@@ -500,6 +509,28 @@
             return d.substring(0, 2) + '/' + d.substring(2, 4) + '/' + d.substring(4, 8);
         }
 
+        // Função para sincronizar os checkboxes de CPF com base nos checkboxes da tabela
+        function syncCPFCheckboxes() {
+            const cpfCheckboxes = document.querySelectorAll('.cpf-checkbox');
+            cpfCheckboxes.forEach(cb => {
+                const cpf = cb.dataset.cpf;
+                // Encontrar todos os checkboxes da tabela com esse CPF
+                const tableCheckboxes = document.querySelectorAll(`#detailsBody input[type="checkbox"][data-cpf="${cpf}"]`);
+                if (tableCheckboxes.length === 0) return;
+                const allChecked = Array.from(tableCheckboxes).every(c => c.checked);
+                cb.checked = allChecked;
+            });
+        }
+
+        // Função para marcar/desmarcar todos os registros de um CPF específico
+        function toggleCPF(cpf, checked) {
+            const tableCheckboxes = document.querySelectorAll(`#detailsBody input[type="checkbox"][data-cpf="${cpf}"]`);
+            tableCheckboxes.forEach(cb => cb.checked = checked);
+            // Atualizar o checkbox do CPF
+            const cpfCheckbox = document.querySelector(`.cpf-checkbox[data-cpf="${cpf}"]`);
+            if (cpfCheckbox) cpfCheckbox.checked = checked;
+        }
+
         function processFile() {
             if (!fileContent) {
                 alert('Por favor, selecione um arquivo primeiro.');
@@ -586,7 +617,7 @@
             document.getElementById('totalHoras').textContent = 
                 String(totalH).padStart(2, '0') + ':' + String(totalM).padStart(2, '0');
 
-            // Renderizar CPFs
+            // Renderizar CPFs com checkboxes
             const cpfResultsEl = document.getElementById('cpfResults');
             cpfResultsEl.innerHTML = '';
 
@@ -600,21 +631,39 @@
 
                     const card = document.createElement('div');
                     card.className = 'cpf-card';
-                    card.innerHTML = `
-                        <div class="cpf-header">
-                            <div>
-                                <div class="cpf-number">${cpfData.cpfFormatado}</div>
-                                <div style="margin-top: 6px; color: #666; font-size: 0.9rem;">
-                                    Matrícula: <strong>${cpfData.matricula}</strong>
-                                    <span class="registers-count">${cpfData.registros} registro${cpfData.registros > 1 ? 's' : ''}</span>
-                                </div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div class="hours-badge">${totalStr}</div>
-                                <div style="margin-top: 4px; color: #888; font-size: 0.85rem;">(${cpfData.totalDecimal.toFixed(2)}h)</div>
-                            </div>
+                    // Checkbox do CPF
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'cpf-checkbox';
+                    checkbox.dataset.cpf = cpfData.cpfFormatado;
+                    checkbox.checked = true; // todos marcados por padrão
+                    checkbox.addEventListener('change', function(e) {
+                        const cpf = this.dataset.cpf;
+                        toggleCPF(cpf, this.checked);
+                    });
+                    card.appendChild(checkbox);
+
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'cpf-info';
+                    infoDiv.innerHTML = `
+                        <div>
+                            <span class="cpf-number">${cpfData.cpfFormatado}</span>
+                            <span class="registers-count">${cpfData.registros} registro${cpfData.registros > 1 ? 's' : ''}</span>
+                        </div>
+                        <div style="margin-top: 4px; color: #666; font-size: 0.9rem;">
+                            Matrícula: <strong>${cpfData.matricula}</strong>
                         </div>
                     `;
+                    card.appendChild(infoDiv);
+
+                    const badgeDiv = document.createElement('div');
+                    badgeDiv.style.textAlign = 'right';
+                    badgeDiv.innerHTML = `
+                        <div class="hours-badge">${totalStr}</div>
+                        <div style="margin-top: 4px; color: #888; font-size: 0.85rem;">(${cpfData.totalDecimal.toFixed(2)}h)</div>
+                    `;
+                    card.appendChild(badgeDiv);
+
                     cpfResultsEl.appendChild(card);
                 });
             }
@@ -635,6 +684,11 @@
                 checkbox.type = 'checkbox';
                 checkbox.checked = true; // todas marcadas por padrão
                 checkbox.dataset.index = idx;
+                checkbox.dataset.cpf = reg.cpfFormatado;
+                checkbox.addEventListener('change', function() {
+                    // Sincronizar o checkbox do CPF correspondente
+                    syncCPFCheckboxes();
+                });
                 cellCheck.appendChild(checkbox);
                 // Demais colunas
                 row.insertCell().textContent = reg.linhaIndex;
@@ -648,6 +702,9 @@
                 cellHoras.innerHTML = `<strong>${reg.horas.str}</strong>`;
             });
 
+            // Sincronizar CPF checkboxes inicialmente
+            syncCPFCheckboxes();
+
             // Mostrar resultados
             document.getElementById('results').classList.remove('hidden');
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
@@ -657,6 +714,9 @@
         function toggleAllCheckboxes(checked) {
             const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = checked);
+            // Atualizar checkboxes de CPF
+            const cpfCheckboxes = document.querySelectorAll('.cpf-checkbox');
+            cpfCheckboxes.forEach(cb => cb.checked = checked);
         }
 
         // Função para exportar novo TXT
