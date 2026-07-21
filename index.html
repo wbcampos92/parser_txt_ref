@@ -27,17 +27,37 @@
             text-align: center;
             color: white;
             margin-bottom: 30px;
+            position: relative;
         }
 
         header h1 {
             font-size: 2.2rem;
             margin-bottom: 10px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #fff;
+            letter-spacing: 0.5px;
+            vertical-align: middle;
+            line-height: 1.6;
         }
 
         header p {
             font-size: 1.1rem;
             opacity: 0.95;
+            margin-top: 4px;
         }
 
         .card {
@@ -179,8 +199,8 @@
             margin-bottom: 15px;
             transition: all 0.2s;
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 15px;
             flex-wrap: wrap;
         }
 
@@ -189,16 +209,10 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .cpf-card .cpf-checkbox {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-
         .cpf-card .cpf-info {
-            flex: 1;
-            min-width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
 
         .cpf-card .cpf-number {
@@ -220,7 +234,6 @@
             border-radius: 20px;
             font-weight: bold;
             font-size: 1.1rem;
-            white-space: nowrap;
         }
 
         .cpf-card .registers-count {
@@ -231,6 +244,13 @@
             font-size: 0.85rem;
             font-weight: 600;
             margin-left: 8px;
+        }
+
+        .cpf-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            margin-right: 10px;
         }
 
         .format-hint {
@@ -317,7 +337,8 @@
         @media (max-width: 768px) {
             .cpf-card {
                 flex-direction: column;
-                align-items: stretch;
+                align-items: flex-start;
+                gap: 10px;
             }
             table {
                 font-size: 0.8rem;
@@ -331,7 +352,10 @@
 <body>
     <div class="container">
         <header>
-            <h1>📄 Parser de Adicionais - Carga Batch</h1>
+            <h1>
+                📄 Parser de Adicionais - Carga Batch
+                <span class="version-badge">v1.1.0</span>
+            </h1>
             <p>Análise de arquivo de adicionais com identificação dos campos e totalização de horas por CPF</p>
         </header>
 
@@ -370,6 +394,12 @@
                 <div class="section-title">
                     <span>👤</span>
                     <span>Total de Horas por CPF</span>
+                    <span style="margin-left: auto; font-size: 0.8rem; font-weight: normal; color: #888;">
+                        <label style="cursor:pointer;">
+                            <input type="checkbox" id="toggleAllCpf" checked onchange="toggleAllCpfCheckboxes(this.checked)">
+                            Selecionar todos
+                        </label>
+                    </span>
                 </div>
                 <div class="format-hint">
                     💡 <strong>Formato:</strong> HHMM (ex: 2400 = 24h). O total é apresentado em <strong>HH:MM</strong> e decimal.
@@ -421,10 +451,11 @@
     <script>
         // Variáveis globais
         let fileContent = '';
-        let parsedData = [];              // Array de objetos com dados e linha original
+        let parsedData = [];
         let headerLine = '';
         let trailerLine = '';
         let originalLines = [];
+        let cpfSelecionados = new Map(); // cpf -> boolean (selecionado)
 
         const adicionaisMap = {
             '01': 'SERVEXTRNT - Serviço Extraordinário Noturno',
@@ -509,28 +540,6 @@
             return d.substring(0, 2) + '/' + d.substring(2, 4) + '/' + d.substring(4, 8);
         }
 
-        // Função para sincronizar os checkboxes de CPF com base nos checkboxes da tabela
-        function syncCPFCheckboxes() {
-            const cpfCheckboxes = document.querySelectorAll('.cpf-checkbox');
-            cpfCheckboxes.forEach(cb => {
-                const cpf = cb.dataset.cpf;
-                // Encontrar todos os checkboxes da tabela com esse CPF
-                const tableCheckboxes = document.querySelectorAll(`#detailsBody input[type="checkbox"][data-cpf="${cpf}"]`);
-                if (tableCheckboxes.length === 0) return;
-                const allChecked = Array.from(tableCheckboxes).every(c => c.checked);
-                cb.checked = allChecked;
-            });
-        }
-
-        // Função para marcar/desmarcar todos os registros de um CPF específico
-        function toggleCPF(cpf, checked) {
-            const tableCheckboxes = document.querySelectorAll(`#detailsBody input[type="checkbox"][data-cpf="${cpf}"]`);
-            tableCheckboxes.forEach(cb => cb.checked = checked);
-            // Atualizar o checkbox do CPF
-            const cpfCheckbox = document.querySelector(`.cpf-checkbox[data-cpf="${cpf}"]`);
-            if (cpfCheckbox) cpfCheckbox.checked = checked;
-        }
-
         function processFile() {
             if (!fileContent) {
                 alert('Por favor, selecione um arquivo primeiro.');
@@ -538,18 +547,14 @@
             }
 
             const lines = fileContent.split('\n');
-            // Remove linhas vazias ou com apenas espaços, mas mantém a estrutura
             const nonEmptyLines = lines.filter(line => line.trim().length > 0);
             if (nonEmptyLines.length === 0) {
                 alert('Arquivo vazio ou inválido.');
                 return;
             }
 
-            // Assume que a primeira linha é o cabeçalho e a última é o trailer (se houver)
             headerLine = nonEmptyLines[0] || '';
             trailerLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
-
-            // As linhas do meio são os registros
             const recordLines = nonEmptyLines.slice(1, nonEmptyLines.length - 1);
 
             parsedData = [];
@@ -569,7 +574,7 @@
                     const descAdicional = adicionaisMap[codAdicional] || 'Código ' + codAdicional;
 
                     const record = {
-                        linhaIndex: index + 1, // número da linha no arquivo (1-based)
+                        linhaIndex: index + 1,
                         matricula: matricula,
                         cpf: cpf,
                         cpfFormatado: formatCPF(cpf),
@@ -577,11 +582,10 @@
                         descAdicional: descAdicional,
                         dataInicio: formatDate(dataInicio),
                         horas: horas,
-                        linhaOriginal: line  // guarda a linha completa
+                        linhaOriginal: line
                     };
 
                     parsedData.push(record);
-
                     totalHorasDecimal += horas.decimal;
 
                     if (!cpfMap.has(cpf)) {
@@ -593,7 +597,6 @@
                             detalhes: []
                         });
                     }
-
                     const cpfData = cpfMap.get(cpf);
                     cpfData.totalDecimal += horas.decimal;
                     cpfData.registros++;
@@ -608,6 +611,15 @@
 
             const cpfArray = Array.from(cpfMap.values()).sort((a, b) => b.totalDecimal - a.totalDecimal);
 
+            // Inicializar seleção de CPFs (todos true)
+            cpfSelecionados = new Map();
+            cpfArray.forEach(cpfData => {
+                const cpfOriginal = cpfData.cpfFormatado; // ou usar o CPF sem formatação? Usaremos o formatado como chave
+                // Encontrar o CPF original a partir dos dados
+                const cpfKey = Object.keys(cpfMap).find(key => cpfMap.get(key).cpfFormatado === cpfData.cpfFormatado);
+                cpfSelecionados.set(cpfData.cpfFormatado, true);
+            });
+
             // Atualizar estatísticas
             document.getElementById('totalRegistros').textContent = parsedData.length;
             document.getElementById('totalCPFs').textContent = cpfArray.length;
@@ -617,7 +629,7 @@
             document.getElementById('totalHoras').textContent = 
                 String(totalH).padStart(2, '0') + ':' + String(totalM).padStart(2, '0');
 
-            // Renderizar CPFs com checkboxes
+            // Renderizar CPFs com checkbox
             const cpfResultsEl = document.getElementById('cpfResults');
             cpfResultsEl.innerHTML = '';
 
@@ -631,66 +643,58 @@
 
                     const card = document.createElement('div');
                     card.className = 'cpf-card';
-                    // Checkbox do CPF
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.className = 'cpf-checkbox';
-                    checkbox.dataset.cpf = cpfData.cpfFormatado;
-                    checkbox.checked = true; // todos marcados por padrão
-                    checkbox.addEventListener('change', function(e) {
-                        const cpf = this.dataset.cpf;
-                        toggleCPF(cpf, this.checked);
-                    });
-                    card.appendChild(checkbox);
+                    const cpfFormat = cpfData.cpfFormatado;
+                    const isChecked = cpfSelecionados.get(cpfFormat) !== false;
 
-                    const infoDiv = document.createElement('div');
-                    infoDiv.className = 'cpf-info';
-                    infoDiv.innerHTML = `
-                        <div>
-                            <span class="cpf-number">${cpfData.cpfFormatado}</span>
-                            <span class="registers-count">${cpfData.registros} registro${cpfData.registros > 1 ? 's' : ''}</span>
+                    card.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <input type="checkbox" class="cpf-checkbox" data-cpf="${cpfFormat}" ${isChecked ? 'checked' : ''} onchange="onCpfCheckboxChange('${cpfFormat}', this.checked)">
+                            <div class="cpf-info">
+                                <div class="cpf-number">${cpfFormat}</div>
+                                <div style="margin-top: 4px; color: #666; font-size: 0.9rem;">
+                                    Matrícula: <strong>${cpfData.matricula}</strong>
+                                    <span class="registers-count">${cpfData.registros} registro${cpfData.registros > 1 ? 's' : ''}</span>
+                                </div>
+                            </div>
                         </div>
-                        <div style="margin-top: 4px; color: #666; font-size: 0.9rem;">
-                            Matrícula: <strong>${cpfData.matricula}</strong>
+                        <div style="text-align: right;">
+                            <div class="hours-badge">${totalStr}</div>
+                            <div style="margin-top: 4px; color: #888; font-size: 0.85rem;">(${cpfData.totalDecimal.toFixed(2)}h)</div>
                         </div>
                     `;
-                    card.appendChild(infoDiv);
-
-                    const badgeDiv = document.createElement('div');
-                    badgeDiv.style.textAlign = 'right';
-                    badgeDiv.innerHTML = `
-                        <div class="hours-badge">${totalStr}</div>
-                        <div style="margin-top: 4px; color: #888; font-size: 0.85rem;">(${cpfData.totalDecimal.toFixed(2)}h)</div>
-                    `;
-                    card.appendChild(badgeDiv);
-
                     cpfResultsEl.appendChild(card);
                 });
             }
 
-            // Renderizar tabela detalhada com checkboxes
+            // Renderizar tabela detalhada com checkboxes (apenas os CPFs selecionados)
+            renderizarTabelaDetalhada();
+
+            // Mostrar resultados
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function renderizarTabelaDetalhada() {
             const tbody = document.getElementById('detailsBody');
             tbody.innerHTML = '';
-            parsedData.forEach((reg, idx) => {
+
+            // Filtrar registros pelos CPFs selecionados
+            const registrosFiltrados = parsedData.filter(reg => {
+                return cpfSelecionados.get(reg.cpfFormatado) !== false;
+            });
+
+            registrosFiltrados.forEach((reg, idx) => {
                 const row = tbody.insertRow();
-                // Número sequencial
                 const cellNum = row.insertCell();
                 cellNum.textContent = idx + 1;
                 cellNum.style.textAlign = 'center';
-                // Checkbox
                 const cellCheck = row.insertCell();
                 cellCheck.className = 'checkbox-col';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.checked = true; // todas marcadas por padrão
+                checkbox.checked = true;
                 checkbox.dataset.index = idx;
-                checkbox.dataset.cpf = reg.cpfFormatado;
-                checkbox.addEventListener('change', function() {
-                    // Sincronizar o checkbox do CPF correspondente
-                    syncCPFCheckboxes();
-                });
                 cellCheck.appendChild(checkbox);
-                // Demais colunas
                 row.insertCell().textContent = reg.linhaIndex;
                 row.insertCell().textContent = '1';
                 row.insertCell().textContent = reg.matricula;
@@ -701,22 +705,34 @@
                 const cellHoras = row.insertCell();
                 cellHoras.innerHTML = `<strong>${reg.horas.str}</strong>`;
             });
-
-            // Sincronizar CPF checkboxes inicialmente
-            syncCPFCheckboxes();
-
-            // Mostrar resultados
-            document.getElementById('results').classList.remove('hidden');
-            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Funções para selecionar/desmarcar todos
+        // Função chamada ao marcar/desmarcar CPF
+        function onCpfCheckboxChange(cpfFormat, checked) {
+            cpfSelecionados.set(cpfFormat, checked);
+            // Atualizar a tabela de detalhes
+            renderizarTabelaDetalhada();
+            // Atualizar o checkbox "Selecionar todos" (se todos estiverem marcados, marcar; senão, desmarcar)
+            const allChecked = Array.from(cpfSelecionados.values()).every(v => v === true);
+            document.getElementById('toggleAllCpf').checked = allChecked;
+        }
+
+        // Selecionar/desmarcar todos os CPFs
+        function toggleAllCpfCheckboxes(checked) {
+            for (let [cpf, _] of cpfSelecionados) {
+                cpfSelecionados.set(cpf, checked);
+            }
+            // Atualizar UI dos checkboxes de CPF
+            document.querySelectorAll('.cpf-checkbox').forEach(cb => {
+                cb.checked = checked;
+            });
+            renderizarTabelaDetalhada();
+        }
+
+        // Funções para selecionar/desmarcar todos os registros da tabela (linhas)
         function toggleAllCheckboxes(checked) {
             const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = checked);
-            // Atualizar checkboxes de CPF
-            const cpfCheckboxes = document.querySelectorAll('.cpf-checkbox');
-            cpfCheckboxes.forEach(cb => cb.checked = checked);
         }
 
         // Função para exportar novo TXT
@@ -729,40 +745,26 @@
                 }
             });
 
-            if (selectedIndices.length === 0) {
+            // Mapear índices para registros filtrados (considerando CPFs selecionados)
+            const registrosFiltrados = parsedData.filter(reg => cpfSelecionados.get(reg.cpfFormatado) !== false);
+            const selectedLines = selectedIndices.map(idx => registrosFiltrados[idx].linhaOriginal);
+
+            if (selectedLines.length === 0) {
                 alert('Nenhum registro selecionado. Marque pelo menos um para gerar o arquivo.');
                 return;
             }
 
-            // Construir novo conteúdo
             let newContent = '';
-            // Cabeçalho
             newContent += headerLine + '\n';
-
-            // Linhas selecionadas
-            const selectedLines = selectedIndices.map(idx => parsedData[idx].linhaOriginal);
             newContent += selectedLines.join('\n');
 
-            // Trailer atualizado
             if (trailerLine) {
-                // Extrai o prefixo (primeiro caractere) e o número atual
                 const prefix = trailerLine.substring(0, 1);
-                const currentCount = parseInt(trailerLine.substring(1)) || 0;
                 const newCount = selectedLines.length;
-                // Atualiza o número com zeros à esquerda (7 dígitos)
                 const newTrailer = prefix + String(newCount).padStart(7, '0');
-                // Garante que o trailer tenha exatamente o mesmo comprimento do original? 
-                // Melhor manter o comprimento original cortando ou preenchendo
-                if (newTrailer.length < trailerLine.length) {
-                    // Preenche com espaços à direita se necessário (mas não parece)
-                    // Mantemos simples
-                }
                 newContent += '\n' + newTrailer;
-            } else {
-                // Se não houver trailer, não adiciona
             }
 
-            // Criar blob e baixar
             const blob = new Blob([newContent], { type: 'text/plain;charset=utf-8' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
