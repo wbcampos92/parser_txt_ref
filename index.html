@@ -102,6 +102,34 @@
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
 
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .btn-success:hover {
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #667eea;
+            color: #667eea;
+            margin-right: 10px;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
         .hidden {
             display: none !important;
         }
@@ -219,11 +247,13 @@
             padding: 12px;
             text-align: left;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         td {
             padding: 12px;
             border-bottom: 1px solid #eee;
+            vertical-align: middle;
         }
 
         tr:hover {
@@ -264,10 +294,27 @@
             color: #999;
         }
 
+        .checkbox-col {
+            text-align: center;
+            width: 40px;
+        }
+
+        .checkbox-col input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
         @media (max-width: 768px) {
             .cpf-header {
                 flex-direction: column;
                 align-items: flex-start;
+            }
+            table {
+                font-size: 0.8rem;
+            }
+            th, td {
+                padding: 8px 6px;
             }
         }
     </style>
@@ -338,6 +385,8 @@
                     <table id="detailsTable">
                         <thead>
                             <tr>
+                                <th style="width:40px;">#</th>
+                                <th style="width:40px;">Sel.</th>
                                 <th>Linha</th>
                                 <th>Tipo</th>
                                 <th>Matrícula</th>
@@ -351,13 +400,22 @@
                         <tbody id="detailsBody"></tbody>
                     </table>
                 </div>
+                <div class="btn-group">
+                    <button class="btn btn-outline" onclick="toggleAllCheckboxes(true)">✅ Selecionar Todos</button>
+                    <button class="btn btn-outline" onclick="toggleAllCheckboxes(false)">❌ Desmarcar Todos</button>
+                    <button class="btn btn-success" onclick="exportarNovoTxt()">📥 Gerar Novo TXT</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Variáveis globais
         let fileContent = '';
-        let parsedData = [];
+        let parsedData = [];              // Array de objetos com dados e linha original
+        let headerLine = '';
+        let trailerLine = '';
+        let originalLines = [];
 
         const adicionaisMap = {
             '01': 'SERVEXTRNT - Serviço Extraordinário Noturno',
@@ -448,14 +506,27 @@
                 return;
             }
 
-            const lines = fileContent.split('\n').filter(line => line.trim().length > 0);
+            const lines = fileContent.split('\n');
+            // Remove linhas vazias ou com apenas espaços, mas mantém a estrutura
+            const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+            if (nonEmptyLines.length === 0) {
+                alert('Arquivo vazio ou inválido.');
+                return;
+            }
+
+            // Assume que a primeira linha é o cabeçalho e a última é o trailer (se houver)
+            headerLine = nonEmptyLines[0] || '';
+            trailerLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
+
+            // As linhas do meio são os registros
+            const recordLines = nonEmptyLines.slice(1, nonEmptyLines.length - 1);
+
             parsedData = [];
             const cpfMap = new Map();
             let totalHorasDecimal = 0;
 
-            lines.forEach((line, index) => {
+            recordLines.forEach((line, index) => {
                 const tipo = line.substring(0, 1);
-                
                 if (tipo === '1') {
                     const matricula = line.substring(2, 9).trim();
                     const cpf = line.substring(9, 20).trim();
@@ -466,16 +537,19 @@
                     const horas = parseHoras(horasStr);
                     const descAdicional = adicionaisMap[codAdicional] || 'Código ' + codAdicional;
 
-                    parsedData.push({
-                        linha: index + 1,
+                    const record = {
+                        linhaIndex: index + 1, // número da linha no arquivo (1-based)
                         matricula: matricula,
                         cpf: cpf,
                         cpfFormatado: formatCPF(cpf),
                         codAdicional: codAdicional,
                         descAdicional: descAdicional,
                         dataInicio: formatDate(dataInicio),
-                        horas: horas
-                    });
+                        horas: horas,
+                        linhaOriginal: line  // guarda a linha completa
+                    };
+
+                    parsedData.push(record);
 
                     totalHorasDecimal += horas.decimal;
 
@@ -545,28 +619,98 @@
                 });
             }
 
-            // Renderizar tabela detalhada
+            // Renderizar tabela detalhada com checkboxes
             const tbody = document.getElementById('detailsBody');
             tbody.innerHTML = '';
-            parsedData.forEach(reg => {
+            parsedData.forEach((reg, idx) => {
                 const row = tbody.insertRow();
-                row.innerHTML = `
-                    <td>${reg.linha}</td>
-                    <td>1</td>
-                    <td>${reg.matricula}</td>
-                    <td>${reg.cpfFormatado}</td>
-                    <td>${reg.codAdicional}</td>
-                    <td>${reg.descAdicional}</td>
-                    <td>${reg.dataInicio}</td>
-                    <td><strong>${reg.horas.str}</strong></td>
-                `;
+                // Número sequencial
+                const cellNum = row.insertCell();
+                cellNum.textContent = idx + 1;
+                cellNum.style.textAlign = 'center';
+                // Checkbox
+                const cellCheck = row.insertCell();
+                cellCheck.className = 'checkbox-col';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = true; // todas marcadas por padrão
+                checkbox.dataset.index = idx;
+                cellCheck.appendChild(checkbox);
+                // Demais colunas
+                row.insertCell().textContent = reg.linhaIndex;
+                row.insertCell().textContent = '1';
+                row.insertCell().textContent = reg.matricula;
+                row.insertCell().textContent = reg.cpfFormatado;
+                row.insertCell().textContent = reg.codAdicional;
+                row.insertCell().textContent = reg.descAdicional;
+                row.insertCell().textContent = reg.dataInicio;
+                const cellHoras = row.insertCell();
+                cellHoras.innerHTML = `<strong>${reg.horas.str}</strong>`;
             });
 
             // Mostrar resultados
             document.getElementById('results').classList.remove('hidden');
-            
-            // Scroll para resultados
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Funções para selecionar/desmarcar todos
+        function toggleAllCheckboxes(checked) {
+            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = checked);
+        }
+
+        // Função para exportar novo TXT
+        function exportarNovoTxt() {
+            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
+            const selectedIndices = [];
+            checkboxes.forEach((cb, idx) => {
+                if (cb.checked) {
+                    selectedIndices.push(idx);
+                }
+            });
+
+            if (selectedIndices.length === 0) {
+                alert('Nenhum registro selecionado. Marque pelo menos um para gerar o arquivo.');
+                return;
+            }
+
+            // Construir novo conteúdo
+            let newContent = '';
+            // Cabeçalho
+            newContent += headerLine + '\n';
+
+            // Linhas selecionadas
+            const selectedLines = selectedIndices.map(idx => parsedData[idx].linhaOriginal);
+            newContent += selectedLines.join('\n');
+
+            // Trailer atualizado
+            if (trailerLine) {
+                // Extrai o prefixo (primeiro caractere) e o número atual
+                const prefix = trailerLine.substring(0, 1);
+                const currentCount = parseInt(trailerLine.substring(1)) || 0;
+                const newCount = selectedLines.length;
+                // Atualiza o número com zeros à esquerda (7 dígitos)
+                const newTrailer = prefix + String(newCount).padStart(7, '0');
+                // Garante que o trailer tenha exatamente o mesmo comprimento do original? 
+                // Melhor manter o comprimento original cortando ou preenchendo
+                if (newTrailer.length < trailerLine.length) {
+                    // Preenche com espaços à direita se necessário (mas não parece)
+                    // Mantemos simples
+                }
+                newContent += '\n' + newTrailer;
+            } else {
+                // Se não houver trailer, não adiciona
+            }
+
+            // Criar blob e baixar
+            const blob = new Blob([newContent], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'novo_arquivo.txt';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
         }
     </script>
 </body>
