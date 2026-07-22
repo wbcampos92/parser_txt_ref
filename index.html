@@ -248,23 +248,14 @@
             border-bottom: 1px solid #eee;
             vertical-align: middle;
         }
-        tr.excluded {
+        tr.inactive {
             opacity: 0.5;
-            background: #f0f0f0;
-        }
-        tr.excluded td:not(:first-child):not(:nth-child(2)) {
             text-decoration: line-through;
-            color: #999;
+            background-color: #f0f0f0;
         }
-        tr.excluded .checkbox-col input[type="checkbox"] {
-            opacity: 0.4;
+        tr.inactive td .checkbox-col input[type="checkbox"] {
             cursor: not-allowed;
-        }
-        tr:hover {
-            background: #f8f9ff;
-        }
-        tr.excluded:hover {
-            background: #e8e8e8;
+            opacity: 0.5;
         }
         .field-map {
             display: grid;
@@ -389,9 +380,6 @@
                 <div class="section-title">
                     <span>🔍</span>
                     <span>Registros Detalhados</span>
-                    <span style="margin-left: auto; font-size:0.8rem; font-weight:normal; color:#888;">
-                        <label><input type="checkbox" id="showExcluded" checked onchange="renderizarTabelaDetalhada()"> Mostrar excluídos</label>
-                    </span>
                 </div>
                 <div style="overflow-x: auto;">
                     <table id="detailsTable">
@@ -463,6 +451,7 @@
             { pos: '80-679', name: 'Texto do Adicional', tam: 600, obs: 'Descrição do adicional' }
         ];
 
+        // Preencher mapa de campos
         document.addEventListener('DOMContentLoaded', () => {
             const fieldMapEl = document.getElementById('fieldMap');
             fieldDefs.forEach(field => {
@@ -522,6 +511,7 @@
                 return;
             }
 
+            // Primeira linha = cabeçalho (tipo 0), última = trailer (tipo 9)
             headerLine = nonEmptyLines[0] || '';
             trailerLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
             const recordLines = nonEmptyLines.slice(1, nonEmptyLines.length - 1);
@@ -580,11 +570,13 @@
 
             const cpfArray = Array.from(cpfMap.values()).sort((a, b) => b.totalDecimal - a.totalDecimal);
 
+            // Inicializar seleção de CPFs (todos true)
             cpfSelecionados = new Map();
             cpfArray.forEach(cpfData => {
                 cpfSelecionados.set(cpfData.cpfFormatado, true);
             });
 
+            // Atualizar estatísticas
             document.getElementById('totalRegistros').textContent = parsedData.length;
             document.getElementById('totalCPFs').textContent = cpfArray.length;
             const totalH = Math.floor(totalHorasDecimal);
@@ -592,7 +584,7 @@
             document.getElementById('totalHoras').textContent = 
                 String(totalH).padStart(2, '0') + ':' + String(totalM).padStart(2, '0');
 
-            // Renderizar CPFs
+            // Renderizar CPFs com checkbox
             const cpfResultsEl = document.getElementById('cpfResults');
             cpfResultsEl.innerHTML = '';
 
@@ -629,6 +621,7 @@
                 });
             }
 
+            // Renderizar tabela detalhada
             renderizarTabelaDetalhada();
 
             document.getElementById('results').classList.remove('hidden');
@@ -639,18 +632,13 @@
             const tbody = document.getElementById('detailsBody');
             tbody.innerHTML = '';
 
-            const showExcluded = document.getElementById('showExcluded').checked;
-
-            // Para cada registro, determinar se está selecionado (CPF marcado)
+            // Para cada registro, verificar se o CPF está selecionado
             parsedData.forEach((reg, idx) => {
-                const isCpfSelected = cpfSelecionados.get(reg.cpfFormatado) !== false;
-                if (!showExcluded && !isCpfSelected) return; // não mostrar excluídos
-
+                const cpfAtivo = cpfSelecionados.get(reg.cpfFormatado) !== false;
                 const row = tbody.insertRow();
-                if (!isCpfSelected) {
-                    row.className = 'excluded'; // estiliza como excluído
+                if (!cpfAtivo) {
+                    row.classList.add('inactive');
                 }
-
                 // Número sequencial
                 const cellNum = row.insertCell();
                 cellNum.textContent = idx + 1;
@@ -660,11 +648,19 @@
                 cellCheck.className = 'checkbox-col';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.checked = isCpfSelected; // se CPF selecionado, marcado
-                checkbox.disabled = !isCpfSelected; // se CPF excluído, desabilitado
+                checkbox.checked = cpfAtivo; // se CPF ativo, checkbox marcado por padrão
+                checkbox.disabled = !cpfAtivo;
                 checkbox.dataset.index = idx;
+                // Ao clicar no checkbox, se o CPF estiver inativo, não faz nada (disabled)
+                // Se o CPF estiver ativo, permite marcar/desmarcar
+                checkbox.addEventListener('change', function(e) {
+                    if (cpfAtivo) {
+                        // Apenas marca/desmarca, não afeta o CPF
+                        // Manter o estado do checkbox conforme o usuário
+                    }
+                });
                 cellCheck.appendChild(checkbox);
-
+                // Demais colunas
                 row.insertCell().textContent = reg.linhaIndex;
                 row.insertCell().textContent = '1';
                 row.insertCell().textContent = reg.matricula;
@@ -693,43 +689,46 @@
         }
 
         function toggleAllCheckboxes(checked) {
-            // Apenas os checkboxes habilitados (CPF selecionado) podem ser alterados
-            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]:not(:disabled)');
-            checkboxes.forEach(cb => cb.checked = checked);
+            // Apenas para linhas ativas (CPF selecionado)
+            const rows = document.querySelectorAll('#detailsBody tr');
+            rows.forEach((row, idx) => {
+                const checkbox = row.querySelector('.checkbox-col input[type="checkbox"]');
+                if (checkbox && !checkbox.disabled) {
+                    checkbox.checked = checked;
+                }
+            });
         }
 
         function exportarNovoTxt() {
-            // Coletar apenas as linhas cujo CPF está selecionado e o checkbox individual está marcado
-            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]:not(:disabled)');
-            const selectedIndices = [];
-            checkboxes.forEach((cb, idx) => {
-                if (cb.checked) {
-                    // O índice na tabela pode não corresponder ao índice em parsedData
-                    // Como a ordem é a mesma, podemos pegar o rowIndex
-                    const row = cb.closest('tr');
-                    const rowIndex = Array.from(row.parentElement.children).indexOf(row);
-                    selectedIndices.push(rowIndex);
+            // Coletar apenas as linhas marcadas (checkbox checked) e que não estejam desabilitadas (ou seja, CPF ativo)
+            const rows = document.querySelectorAll('#detailsBody tr');
+            const selectedLines = [];
+            rows.forEach((row) => {
+                const checkbox = row.querySelector('.checkbox-col input[type="checkbox"]');
+                if (checkbox && checkbox.checked && !checkbox.disabled) {
+                    // Encontrar o índice do registro correspondente
+                    const idx = parseInt(checkbox.dataset.index);
+                    if (!isNaN(idx) && parsedData[idx]) {
+                        selectedLines.push(parsedData[idx].linhaOriginal);
+                    }
                 }
             });
-
-            // Mapear índices para os registros correspondentes
-            // Como renderizamos todos os registros (com filtro), a ordem é a mesma de parsedData
-            const registrosFiltrados = parsedData.filter(reg => cpfSelecionados.get(reg.cpfFormatado) !== false);
-            const selectedLines = selectedIndices.map(idx => registrosFiltrados[idx].linhaOriginal);
 
             if (selectedLines.length === 0) {
                 alert('Nenhum registro selecionado. Marque pelo menos um para gerar o arquivo.');
                 return;
             }
 
+            // Montar novo conteúdo
             let newContent = '';
             newContent += headerLine + '\n';
             newContent += selectedLines.join('\n');
 
+            // Gerar trailer com 664 espaços em branco (novo layout)
             const qtd = selectedLines.length;
-            const qtdStr = String(qtd).padStart(7, '0');
+            const qtdStr = String(qtd).padStart(7, '0'); // 7 dígitos
             const trailer = '9' + qtdStr + ' '.repeat(664);
-            newContent += '\n' + trailer + '\n'; // final com quebra de linha
+            newContent += '\n' + trailer + '\n'; // adiciona quebra de linha final
 
             const blob = new Blob([newContent], { type: 'text/plain;charset=utf-8' });
             const link = document.createElement('a');
