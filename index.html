@@ -254,8 +254,7 @@
             background-color: #f0f0f0;
         }
         tr.inactive td .checkbox-col input[type="checkbox"] {
-            cursor: not-allowed;
-            opacity: 0.5;
+            cursor: pointer;
         }
         .field-map {
             display: grid;
@@ -315,7 +314,7 @@
         <header>
             <h1>
                 📄 Parser de Adicionais - Carga Batch
-                <span class="version-badge">v1.3.0</span>
+                <span class="version-badge">v1.4.0</span>
             </h1>
             <p>Análise de arquivo de adicionais com identificação dos campos e totalização de horas por CPF</p>
         </header>
@@ -380,6 +379,12 @@
                 <div class="section-title">
                     <span>🔍</span>
                     <span>Registros Detalhados</span>
+                    <span style="margin-left: auto; font-size: 0.8rem; font-weight: normal; color: #888;">
+                        <label style="cursor:pointer;">
+                            <input type="checkbox" id="showOnlySelected" onchange="renderizarTabelaDetalhada()">
+                            Mostrar apenas selecionados
+                        </label>
+                    </span>
                 </div>
                 <div style="overflow-x: auto;">
                     <table id="detailsTable">
@@ -415,7 +420,8 @@
         let parsedData = [];
         let headerLine = '';
         let trailerLine = '';
-        let cpfSelecionados = new Map(); // cpfFormatado -> boolean
+        let cpfSelecionados = new Map(); // cpfFormatado -> boolean (estado mestre)
+        let linhaCheckState = []; // array de boolean para cada registro (checkbox individual)
 
         const adicionaisMap = {
             '01': 'SERVEXTRNT - Adicional por Serviço Extraordinário Noturno',
@@ -511,7 +517,6 @@
                 return;
             }
 
-            // Primeira linha = cabeçalho (tipo 0), última = trailer (tipo 9)
             headerLine = nonEmptyLines[0] || '';
             trailerLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
             const recordLines = nonEmptyLines.slice(1, nonEmptyLines.length - 1);
@@ -570,11 +575,12 @@
 
             const cpfArray = Array.from(cpfMap.values()).sort((a, b) => b.totalDecimal - a.totalDecimal);
 
-            // Inicializar seleção de CPFs (todos true)
+            // Inicializar seleção de CPFs (todos true) e estado das linhas (todas true)
             cpfSelecionados = new Map();
             cpfArray.forEach(cpfData => {
                 cpfSelecionados.set(cpfData.cpfFormatado, true);
             });
+            linhaCheckState = parsedData.map(() => true);
 
             // Atualizar estatísticas
             document.getElementById('totalRegistros').textContent = parsedData.length;
@@ -631,14 +637,22 @@
         function renderizarTabelaDetalhada() {
             const tbody = document.getElementById('detailsBody');
             tbody.innerHTML = '';
+            const showOnlySelected = document.getElementById('showOnlySelected').checked;
 
-            // Para cada registro, verificar se o CPF está selecionado
             parsedData.forEach((reg, idx) => {
                 const cpfAtivo = cpfSelecionados.get(reg.cpfFormatado) !== false;
+                const linhaMarcada = linhaCheckState[idx] || false;
+
+                // Se filtro "mostrar apenas selecionados" estiver ativo, pular linhas não marcadas
+                if (showOnlySelected && !linhaMarcada) return;
+
                 const row = tbody.insertRow();
-                if (!cpfAtivo) {
+                // Aplica estilo inativo se o CPF estiver desmarcado E a linha não estiver marcada individualmente
+                const isInactive = !cpfAtivo && !linhaMarcada;
+                if (isInactive) {
                     row.classList.add('inactive');
                 }
+
                 // Número sequencial
                 const cellNum = row.insertCell();
                 cellNum.textContent = idx + 1;
@@ -648,18 +662,23 @@
                 cellCheck.className = 'checkbox-col';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.checked = cpfAtivo; // se CPF ativo, checkbox marcado por padrão
-                checkbox.disabled = !cpfAtivo;
+                checkbox.checked = linhaMarcada;
                 checkbox.dataset.index = idx;
-                // Ao clicar no checkbox, se o CPF estiver inativo, não faz nada (disabled)
-                // Se o CPF estiver ativo, permite marcar/desmarcar
                 checkbox.addEventListener('change', function(e) {
-                    if (cpfAtivo) {
-                        // Apenas marca/desmarca, não afeta o CPF
-                        // Manter o estado do checkbox conforme o usuário
+                    linhaCheckState[idx] = this.checked;
+                    // Se a linha foi marcada, remove a classe inactive (se houver)
+                    if (this.checked) {
+                        row.classList.remove('inactive');
+                    } else {
+                        // Se o CPF estiver desmarcado, reaplica o estilo inactive
+                        if (!cpfSelecionados.get(reg.cpfFormatado)) {
+                            row.classList.add('inactive');
+                        }
                     }
+                    // Atualiza o estado do CPF mestre? Não, pois exceções não alteram o mestre.
                 });
                 cellCheck.appendChild(checkbox);
+
                 // Demais colunas
                 row.insertCell().textContent = reg.linhaIndex;
                 row.insertCell().textContent = '1';
@@ -675,6 +694,12 @@
 
         function onCpfCheckboxChange(cpfFormat, checked) {
             cpfSelecionados.set(cpfFormat, checked);
+            // Atualizar estado das linhas deste CPF: se marcado, todas as linhas ficam marcadas; se desmarcado, todas desmarcadas (mas o usuário pode re-marcar depois)
+            parsedData.forEach((reg, idx) => {
+                if (reg.cpfFormatado === cpfFormat) {
+                    linhaCheckState[idx] = checked;
+                }
+            });
             renderizarTabelaDetalhada();
             const allChecked = Array.from(cpfSelecionados.values()).every(v => v === true);
             document.getElementById('toggleAllCpf').checked = allChecked;
@@ -684,33 +709,28 @@
             for (let [cpf, _] of cpfSelecionados) {
                 cpfSelecionados.set(cpf, checked);
             }
+            // Atualizar todas as linhas
+            parsedData.forEach((reg, idx) => {
+                linhaCheckState[idx] = checked;
+            });
             document.querySelectorAll('.cpf-checkbox').forEach(cb => cb.checked = checked);
             renderizarTabelaDetalhada();
         }
 
         function toggleAllCheckboxes(checked) {
-            // Apenas para linhas ativas (CPF selecionado)
-            const rows = document.querySelectorAll('#detailsBody tr');
-            rows.forEach((row, idx) => {
-                const checkbox = row.querySelector('.checkbox-col input[type="checkbox"]');
-                if (checkbox && !checkbox.disabled) {
-                    checkbox.checked = checked;
-                }
+            // Marca/desmarca todas as linhas, independentemente do CPF
+            parsedData.forEach((reg, idx) => {
+                linhaCheckState[idx] = checked;
             });
+            renderizarTabelaDetalhada();
         }
 
         function exportarNovoTxt() {
-            // Coletar apenas as linhas marcadas (checkbox checked) e que não estejam desabilitadas (ou seja, CPF ativo)
-            const rows = document.querySelectorAll('#detailsBody tr');
+            // Coletar linhas marcadas (checkbox true)
             const selectedLines = [];
-            rows.forEach((row) => {
-                const checkbox = row.querySelector('.checkbox-col input[type="checkbox"]');
-                if (checkbox && checkbox.checked && !checkbox.disabled) {
-                    // Encontrar o índice do registro correspondente
-                    const idx = parseInt(checkbox.dataset.index);
-                    if (!isNaN(idx) && parsedData[idx]) {
-                        selectedLines.push(parsedData[idx].linhaOriginal);
-                    }
+            parsedData.forEach((reg, idx) => {
+                if (linhaCheckState[idx]) {
+                    selectedLines.push(reg.linhaOriginal);
                 }
             });
 
@@ -719,16 +739,14 @@
                 return;
             }
 
-            // Montar novo conteúdo
             let newContent = '';
             newContent += headerLine + '\n';
             newContent += selectedLines.join('\n');
 
-            // Gerar trailer com 664 espaços em branco (novo layout)
             const qtd = selectedLines.length;
-            const qtdStr = String(qtd).padStart(7, '0'); // 7 dígitos
+            const qtdStr = String(qtd).padStart(7, '0');
             const trailer = '9' + qtdStr + ' '.repeat(664);
-            newContent += '\n' + trailer + '\n'; // adiciona quebra de linha final
+            newContent += '\n' + trailer + '\n';
 
             const blob = new Blob([newContent], { type: 'text/plain;charset=utf-8' });
             const link = document.createElement('a');
