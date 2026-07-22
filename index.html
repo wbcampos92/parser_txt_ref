@@ -10,26 +10,22 @@
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
-
         header {
             text-align: center;
             color: white;
             margin-bottom: 30px;
             position: relative;
         }
-
         header h1 {
             font-size: 2.2rem;
             margin-bottom: 10px;
@@ -38,12 +34,11 @@
             align-items: center;
             gap: 15px;
         }
-
         .version-badge {
             display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255,255,255,0.2);
             backdrop-filter: blur(4px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255,255,255,0.3);
             border-radius: 20px;
             padding: 4px 14px;
             font-size: 0.85rem;
@@ -53,13 +48,11 @@
             vertical-align: middle;
             line-height: 1.6;
         }
-
         header p {
             font-size: 1.1rem;
             opacity: 0.95;
             margin-top: 4px;
         }
-
         .card {
             background: white;
             border-radius: 16px;
@@ -68,7 +61,6 @@
             margin-bottom: 25px;
             transition: transform 0.2s;
         }
-
         .upload-area {
             border: 3px dashed #667eea;
             border-radius: 12px;
@@ -78,32 +70,26 @@
             transition: all 0.3s;
             background: #f8f9ff;
         }
-
         .upload-area:hover {
             background: #f0f2ff;
             border-color: #764ba2;
         }
-
         .upload-area input[type="file"] {
             display: none;
         }
-
         .upload-icon {
             font-size: 48px;
             margin-bottom: 15px;
         }
-
         .upload-text {
             color: #555;
             font-size: 1.1rem;
         }
-
         .upload-subtext {
             color: #888;
             font-size: 0.9rem;
             margin-top: 8px;
         }
-
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -116,32 +102,26 @@
             font-weight: 600;
             margin-top: 15px;
         }
-
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 15px rgba(102,126,234,0.4);
         }
-
         .btn-success {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
         }
-
         .btn-success:hover {
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+            box-shadow: 0 5px 15px rgba(40,167,69,0.4);
         }
-
         .btn-outline {
             background: transparent;
             border: 2px solid #667eea;
             color: #667eea;
             margin-right: 10px;
         }
-
         .btn-outline:hover {
             background: #667eea;
             color: white;
         }
-
         .btn-group {
             display: flex;
             flex-wrap: wrap;
@@ -149,18 +129,15 @@
             justify-content: center;
             margin-top: 15px;
         }
-
         .hidden {
             display: none !important;
         }
-
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 25px;
         }
-
         .stat-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -168,18 +145,15 @@
             border-radius: 12px;
             text-align: center;
         }
-
         .stat-value {
             font-size: 2rem;
             font-weight: bold;
             margin-bottom: 5px;
         }
-
         .stat-label {
             font-size: 0.95rem;
             opacity: 0.9;
         }
-
         .section-title {
             font-size: 1.4rem;
             color: #333;
@@ -189,8 +163,8 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
         }
-
         .cpf-card {
             background: #f8f9ff;
             border-left: 4px solid #667eea;
@@ -203,18 +177,15 @@
             align-items: center;
             flex-wrap: wrap;
         }
-
         .cpf-card:hover {
             transform: translateX(5px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-
         .cpf-card .cpf-info {
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
-
         .cpf-card .cpf-number {
             font-size: 1.1rem;
             font-weight: bold;
@@ -226,7 +197,6 @@
             border: 1px solid #ddd;
             display: inline-block;
         }
-
         .cpf-card .hours-badge {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -235,7 +205,6 @@
             font-weight: bold;
             font-size: 1.1rem;
         }
-
         .cpf-card .registers-count {
             background: #e3e8ff;
             color: #667eea;
@@ -245,14 +214,12 @@
             font-weight: 600;
             margin-left: 8px;
         }
-
         .cpf-checkbox {
             width: 20px;
             height: 20px;
             cursor: pointer;
             margin-right: 10px;
         }
-
         .format-hint {
             background: #fff3cd;
             border: 1px solid #ffeaa7;
@@ -262,14 +229,12 @@
             margin-bottom: 15px;
             font-size: 0.9rem;
         }
-
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
             font-size: 0.95rem;
         }
-
         th {
             background: #667eea;
             color: white;
@@ -278,62 +243,52 @@
             font-weight: 600;
             white-space: nowrap;
         }
-
         td {
             padding: 12px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
         }
-
         tr:hover {
             background: #f8f9ff;
         }
-
         .field-map {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 15px;
             margin-top: 20px;
         }
-
         .field-item {
             background: #f8f9ff;
             padding: 12px;
             border-radius: 8px;
             border-left: 3px solid #667eea;
         }
-
         .field-pos {
             font-size: 0.8rem;
             color: #667eea;
             font-weight: bold;
             margin-bottom: 4px;
         }
-
         .field-name {
             font-weight: 600;
             color: #333;
             font-size: 0.95rem;
             margin-bottom: 2px;
         }
-
         .empty-state {
             text-align: center;
             padding: 40px;
             color: #999;
         }
-
         .checkbox-col {
             text-align: center;
             width: 40px;
         }
-
         .checkbox-col input[type="checkbox"] {
             width: 18px;
             height: 18px;
             cursor: pointer;
         }
-
         @media (max-width: 768px) {
             .cpf-card {
                 flex-direction: column;
@@ -354,7 +309,7 @@
         <header>
             <h1>
                 📄 Parser de Adicionais - Carga Batch
-                <span class="version-badge">v1.1.0</span>
+                <span class="version-badge">v1.2.0</span>
             </h1>
             <p>Análise de arquivo de adicionais com identificação dos campos e totalização de horas por CPF</p>
         </header>
@@ -454,12 +409,11 @@
         let parsedData = [];
         let headerLine = '';
         let trailerLine = '';
-        let originalLines = [];
-        let cpfSelecionados = new Map(); // cpf -> boolean (selecionado)
+        let cpfSelecionados = new Map(); // cpfFormatado -> boolean
 
         const adicionaisMap = {
-            '01': 'SERVEXTRNT - Serviço Extraordinário Noturno',
-            '02': 'SERVEXTRA - Serviço Extraordinário',
+            '01': 'SERVEXTRNT - Adicional por Serviço Extraordinário Noturno',
+            '02': 'SERVEXTRA - Adicional por Serviço Extraordinário',
             '03': 'NOTURNO - Adicional Noturno',
             '04': 'RAIOS-X',
             '05': 'PERICULOS - Periculosidade',
@@ -476,12 +430,12 @@
             { pos: '3-9', name: 'Matrícula do Servidor', tam: 7, obs: 'SIAPE com zeros à esquerda' },
             { pos: '10-20', name: 'CPF do Servidor', tam: 11, obs: 'CPF sem formatação' },
             { pos: '21-22', name: 'Código do Adicional', tam: 2, obs: '01 a 10' },
-            { pos: '23-32', name: 'Código do Laudo', tam: 10, obs: 'Fixo ou número do laudo' },
+            { pos: '23-32', name: 'Código do Laudo', tam: 10, obs: 'Obrigatório para laudos, senão zeros' },
             { pos: '33', name: 'Desconto PSS', tam: 1, obs: 'S=Sim, N=Não' },
             { pos: '34-41', name: 'Data Início/Concessão', tam: 8, obs: 'DDMMAAAA' },
-            { pos: '42-49', name: 'Data Fim Concessão', tam: 8, obs: 'DDMMAAAA' },
+            { pos: '42-49', name: 'Data Fim Concessão', tam: 8, obs: 'DDMMAAAA (ou espaços)' },
             { pos: '50-53', name: 'Quantidade de Horas', tam: 4, obs: 'Formato HHMM' },
-            { pos: '54-55', name: 'Código Diploma Legal', tam: 2, obs: 'Fixo "04"' },
+            { pos: '54-55', name: 'Código Diploma Legal', tam: 2, obs: 'Ex: "04"' },
             { pos: '56-64', name: 'Número do Diploma Legal', tam: 9, obs: 'Ex: 000000455' },
             { pos: '65-72', name: 'Data do Diploma Legal', tam: 8, obs: 'DDMMAAAA' },
             { pos: '73', name: 'Tipo Concessão', tam: 1, obs: '1=Dias Úteis, 2=FDS, 3=Feriados' },
@@ -509,10 +463,8 @@
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             document.getElementById('fileName').textContent = '📄 ' + file.name;
             document.getElementById('processBtn').classList.remove('hidden');
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 fileContent = e.target.result;
@@ -553,6 +505,7 @@
                 return;
             }
 
+            // Primeira linha = cabeçalho (tipo 0), última = trailer (tipo 9)
             headerLine = nonEmptyLines[0] || '';
             trailerLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
             const recordLines = nonEmptyLines.slice(1, nonEmptyLines.length - 1);
@@ -614,16 +567,12 @@
             // Inicializar seleção de CPFs (todos true)
             cpfSelecionados = new Map();
             cpfArray.forEach(cpfData => {
-                const cpfOriginal = cpfData.cpfFormatado; // ou usar o CPF sem formatação? Usaremos o formatado como chave
-                // Encontrar o CPF original a partir dos dados
-                const cpfKey = Object.keys(cpfMap).find(key => cpfMap.get(key).cpfFormatado === cpfData.cpfFormatado);
                 cpfSelecionados.set(cpfData.cpfFormatado, true);
             });
 
             // Atualizar estatísticas
             document.getElementById('totalRegistros').textContent = parsedData.length;
             document.getElementById('totalCPFs').textContent = cpfArray.length;
-            
             const totalH = Math.floor(totalHorasDecimal);
             const totalM = Math.round((totalHorasDecimal - totalH) * 60);
             document.getElementById('totalHoras').textContent = 
@@ -666,10 +615,9 @@
                 });
             }
 
-            // Renderizar tabela detalhada com checkboxes (apenas os CPFs selecionados)
+            // Renderizar tabela detalhada
             renderizarTabelaDetalhada();
 
-            // Mostrar resultados
             document.getElementById('results').classList.remove('hidden');
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
         }
@@ -678,10 +626,7 @@
             const tbody = document.getElementById('detailsBody');
             tbody.innerHTML = '';
 
-            // Filtrar registros pelos CPFs selecionados
-            const registrosFiltrados = parsedData.filter(reg => {
-                return cpfSelecionados.get(reg.cpfFormatado) !== false;
-            });
+            const registrosFiltrados = parsedData.filter(reg => cpfSelecionados.get(reg.cpfFormatado) !== false);
 
             registrosFiltrados.forEach((reg, idx) => {
                 const row = tbody.insertRow();
@@ -707,45 +652,33 @@
             });
         }
 
-        // Função chamada ao marcar/desmarcar CPF
         function onCpfCheckboxChange(cpfFormat, checked) {
             cpfSelecionados.set(cpfFormat, checked);
-            // Atualizar a tabela de detalhes
             renderizarTabelaDetalhada();
-            // Atualizar o checkbox "Selecionar todos" (se todos estiverem marcados, marcar; senão, desmarcar)
             const allChecked = Array.from(cpfSelecionados.values()).every(v => v === true);
             document.getElementById('toggleAllCpf').checked = allChecked;
         }
 
-        // Selecionar/desmarcar todos os CPFs
         function toggleAllCpfCheckboxes(checked) {
             for (let [cpf, _] of cpfSelecionados) {
                 cpfSelecionados.set(cpf, checked);
             }
-            // Atualizar UI dos checkboxes de CPF
-            document.querySelectorAll('.cpf-checkbox').forEach(cb => {
-                cb.checked = checked;
-            });
+            document.querySelectorAll('.cpf-checkbox').forEach(cb => cb.checked = checked);
             renderizarTabelaDetalhada();
         }
 
-        // Funções para selecionar/desmarcar todos os registros da tabela (linhas)
         function toggleAllCheckboxes(checked) {
             const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
             checkboxes.forEach(cb => cb.checked = checked);
         }
 
-        // Função para exportar novo TXT
         function exportarNovoTxt() {
             const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
             const selectedIndices = [];
             checkboxes.forEach((cb, idx) => {
-                if (cb.checked) {
-                    selectedIndices.push(idx);
-                }
+                if (cb.checked) selectedIndices.push(idx);
             });
 
-            // Mapear índices para registros filtrados (considerando CPFs selecionados)
             const registrosFiltrados = parsedData.filter(reg => cpfSelecionados.get(reg.cpfFormatado) !== false);
             const selectedLines = selectedIndices.map(idx => registrosFiltrados[idx].linhaOriginal);
 
@@ -754,16 +687,16 @@
                 return;
             }
 
+            // Montar novo conteúdo
             let newContent = '';
             newContent += headerLine + '\n';
             newContent += selectedLines.join('\n');
 
-            if (trailerLine) {
-                const prefix = trailerLine.substring(0, 1);
-                const newCount = selectedLines.length;
-                const newTrailer = prefix + String(newCount).padStart(7, '0');
-                newContent += '\n' + newTrailer;
-            }
+            // Gerar trailer com 664 espaços em branco (novo layout)
+            const qtd = selectedLines.length;
+            const qtdStr = String(qtd).padStart(7, '0'); // 7 dígitos
+            const trailer = '9' + qtdStr + ' '.repeat(664);
+            newContent += '\n' + trailer;
 
             const blob = new Blob([newContent], { type: 'text/plain;charset=utf-8' });
             const link = document.createElement('a');
