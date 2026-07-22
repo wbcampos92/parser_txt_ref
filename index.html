@@ -248,8 +248,23 @@
             border-bottom: 1px solid #eee;
             vertical-align: middle;
         }
+        tr.excluded {
+            opacity: 0.5;
+            background: #f0f0f0;
+        }
+        tr.excluded td:not(:first-child):not(:nth-child(2)) {
+            text-decoration: line-through;
+            color: #999;
+        }
+        tr.excluded .checkbox-col input[type="checkbox"] {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
         tr:hover {
             background: #f8f9ff;
+        }
+        tr.excluded:hover {
+            background: #e8e8e8;
         }
         .field-map {
             display: grid;
@@ -309,7 +324,7 @@
         <header>
             <h1>
                 📄 Parser de Adicionais - Carga Batch
-                <span class="version-badge">v1.2.0</span>
+                <span class="version-badge">v1.3.0</span>
             </h1>
             <p>Análise de arquivo de adicionais com identificação dos campos e totalização de horas por CPF</p>
         </header>
@@ -374,6 +389,9 @@
                 <div class="section-title">
                     <span>🔍</span>
                     <span>Registros Detalhados</span>
+                    <span style="margin-left: auto; font-size:0.8rem; font-weight:normal; color:#888;">
+                        <label><input type="checkbox" id="showExcluded" checked onchange="renderizarTabelaDetalhada()"> Mostrar excluídos</label>
+                    </span>
                 </div>
                 <div style="overflow-x: auto;">
                     <table id="detailsTable">
@@ -445,7 +463,6 @@
             { pos: '80-679', name: 'Texto do Adicional', tam: 600, obs: 'Descrição do adicional' }
         ];
 
-        // Preencher mapa de campos
         document.addEventListener('DOMContentLoaded', () => {
             const fieldMapEl = document.getElementById('fieldMap');
             fieldDefs.forEach(field => {
@@ -505,7 +522,6 @@
                 return;
             }
 
-            // Primeira linha = cabeçalho (tipo 0), última = trailer (tipo 9)
             headerLine = nonEmptyLines[0] || '';
             trailerLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
             const recordLines = nonEmptyLines.slice(1, nonEmptyLines.length - 1);
@@ -564,13 +580,11 @@
 
             const cpfArray = Array.from(cpfMap.values()).sort((a, b) => b.totalDecimal - a.totalDecimal);
 
-            // Inicializar seleção de CPFs (todos true)
             cpfSelecionados = new Map();
             cpfArray.forEach(cpfData => {
                 cpfSelecionados.set(cpfData.cpfFormatado, true);
             });
 
-            // Atualizar estatísticas
             document.getElementById('totalRegistros').textContent = parsedData.length;
             document.getElementById('totalCPFs').textContent = cpfArray.length;
             const totalH = Math.floor(totalHorasDecimal);
@@ -578,7 +592,7 @@
             document.getElementById('totalHoras').textContent = 
                 String(totalH).padStart(2, '0') + ':' + String(totalM).padStart(2, '0');
 
-            // Renderizar CPFs com checkbox
+            // Renderizar CPFs
             const cpfResultsEl = document.getElementById('cpfResults');
             cpfResultsEl.innerHTML = '';
 
@@ -615,7 +629,6 @@
                 });
             }
 
-            // Renderizar tabela detalhada
             renderizarTabelaDetalhada();
 
             document.getElementById('results').classList.remove('hidden');
@@ -626,20 +639,32 @@
             const tbody = document.getElementById('detailsBody');
             tbody.innerHTML = '';
 
-            const registrosFiltrados = parsedData.filter(reg => cpfSelecionados.get(reg.cpfFormatado) !== false);
+            const showExcluded = document.getElementById('showExcluded').checked;
 
-            registrosFiltrados.forEach((reg, idx) => {
+            // Para cada registro, determinar se está selecionado (CPF marcado)
+            parsedData.forEach((reg, idx) => {
+                const isCpfSelected = cpfSelecionados.get(reg.cpfFormatado) !== false;
+                if (!showExcluded && !isCpfSelected) return; // não mostrar excluídos
+
                 const row = tbody.insertRow();
+                if (!isCpfSelected) {
+                    row.className = 'excluded'; // estiliza como excluído
+                }
+
+                // Número sequencial
                 const cellNum = row.insertCell();
                 cellNum.textContent = idx + 1;
                 cellNum.style.textAlign = 'center';
+                // Checkbox
                 const cellCheck = row.insertCell();
                 cellCheck.className = 'checkbox-col';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.checked = true;
+                checkbox.checked = isCpfSelected; // se CPF selecionado, marcado
+                checkbox.disabled = !isCpfSelected; // se CPF excluído, desabilitado
                 checkbox.dataset.index = idx;
                 cellCheck.appendChild(checkbox);
+
                 row.insertCell().textContent = reg.linhaIndex;
                 row.insertCell().textContent = '1';
                 row.insertCell().textContent = reg.matricula;
@@ -668,17 +693,27 @@
         }
 
         function toggleAllCheckboxes(checked) {
-            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
+            // Apenas os checkboxes habilitados (CPF selecionado) podem ser alterados
+            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]:not(:disabled)');
             checkboxes.forEach(cb => cb.checked = checked);
         }
 
         function exportarNovoTxt() {
-            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]');
+            // Coletar apenas as linhas cujo CPF está selecionado e o checkbox individual está marcado
+            const checkboxes = document.querySelectorAll('#detailsBody input[type="checkbox"]:not(:disabled)');
             const selectedIndices = [];
             checkboxes.forEach((cb, idx) => {
-                if (cb.checked) selectedIndices.push(idx);
+                if (cb.checked) {
+                    // O índice na tabela pode não corresponder ao índice em parsedData
+                    // Como a ordem é a mesma, podemos pegar o rowIndex
+                    const row = cb.closest('tr');
+                    const rowIndex = Array.from(row.parentElement.children).indexOf(row);
+                    selectedIndices.push(rowIndex);
+                }
             });
 
+            // Mapear índices para os registros correspondentes
+            // Como renderizamos todos os registros (com filtro), a ordem é a mesma de parsedData
             const registrosFiltrados = parsedData.filter(reg => cpfSelecionados.get(reg.cpfFormatado) !== false);
             const selectedLines = selectedIndices.map(idx => registrosFiltrados[idx].linhaOriginal);
 
@@ -687,16 +722,14 @@
                 return;
             }
 
-            // Montar novo conteúdo
             let newContent = '';
             newContent += headerLine + '\n';
             newContent += selectedLines.join('\n');
 
-            // Gerar trailer com 664 espaços em branco (novo layout)
             const qtd = selectedLines.length;
-            const qtdStr = String(qtd).padStart(7, '0'); // 7 dígitos
+            const qtdStr = String(qtd).padStart(7, '0');
             const trailer = '9' + qtdStr + ' '.repeat(664);
-            newContent += '\n' + trailer;
+            newContent += '\n' + trailer + '\n'; // final com quebra de linha
 
             const blob = new Blob([newContent], { type: 'text/plain;charset=utf-8' });
             const link = document.createElement('a');
