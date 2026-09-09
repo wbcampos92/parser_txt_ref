@@ -508,7 +508,7 @@
         <header>
             <h1>
                 📄 Parser de Adicionais · Carga Batch
-                <span class="version-badge">v1.5.0</span>
+                <span class="version-badge">v1.6.0</span>
             </h1>
             <p>Análise de arquivo de adicionais com totalização de horas por CPF e ajuste individual por linha</p>
         </header>
@@ -632,8 +632,6 @@
             '10': 'INDENIZAÇÃO - Localidades Estratégicas'
         };
 
-        // Removida a seção de layout de campos – não será mais exibida
-
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -694,12 +692,20 @@
             return horasDecimal + (minutosAjuste / 60);
         }
 
-        // Formata horas decimais em HH:MM
+        // Formata horas decimais em HH:MM (para exibição)
         function decimalParaStr(dec) {
             const totalMin = Math.round(dec * 60);
             const hh = Math.floor(totalMin / 60);
             const mm = totalMin % 60;
             return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+        }
+
+        // Formata horas decimais em HHMM (4 dígitos, sem dois pontos) para o TXT
+        function decimalParaHHMM(dec) {
+            const totalMin = Math.round(dec * 60);
+            const hh = Math.floor(totalMin / 60);
+            const mm = totalMin % 60;
+            return String(hh).padStart(2, '0') + String(mm).padStart(2, '0');
         }
 
         // Recalcula e atualiza todos os totais (cards de CPF e estatísticas)
@@ -903,7 +909,20 @@
             const selectedLines = [];
             parsedData.forEach((reg, idx) => {
                 if (linhaCheckState[idx]) {
-                    selectedLines.push(reg.linhaOriginal);
+                    // Aplica o ajuste na linha original
+                    let linha = reg.linhaOriginal;
+                    const base = reg.horas.decimal;
+                    const ajuste = ajustesMinutos[idx] || 0;
+                    const total = aplicarAjuste(base, ajuste);
+                    const horasAjustadas = decimalParaHHMM(total);
+
+                    // Substitui as posições 49-53 (0-index: 49 a 52 inclusive)
+                    // A linha tem no mínimo 53 caracteres
+                    const antes = linha.substring(0, 49);
+                    const depois = linha.substring(53);
+                    linha = antes + horasAjustadas + depois;
+
+                    selectedLines.push(linha);
                 }
             });
 
