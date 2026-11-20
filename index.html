@@ -232,6 +232,11 @@
             margin-top: 18px;
         }
 
+        .upload-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        @media (max-width: 700px) { .upload-grid { grid-template-columns:1fr; } }
+        .srv-nome { font-weight:700; margin-top:4px; }
+        .srv-exer { color: var(--t2); font-size:0.88rem; }
+        .xlsx-status { margin-top:10px; font-size:0.88rem; color:var(--t2); text-align:center; }
         .hidden {
             display: none !important;
         }
@@ -508,20 +513,21 @@
         <header>
             <h1>
                 📄 Parser de Adicionais · Carga Batch
-                <span class="version-badge">v1.6.1</span>
+                <span class="version-badge">v1.8.1</span>
             </h1>
             <p>Análise de arquivo de adicionais com totalização de horas por CPF e ajuste individual por linha</p>
         </header>
 
         <!-- Área de upload -->
         <div class="card">
-            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
-                <input type="file" id="fileInput" accept=".txt,.TXT" onchange="handleFileSelect(event)" />
+            <div class="upload-area" id="dropArea" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" accept=".txt,.TXT,.xlsx,.csv" multiple onchange="handleFilesSelect(event.target.files)" />
                 <div class="upload-icon">📁</div>
-                <div class="upload-text">Clique para selecionar o arquivo TXT</div>
-                <div class="upload-subtext">Ou arraste e solte o arquivo aqui</div>
-                <div id="fileName" style="margin-top:14px; font-weight:600; color:var(--g-d);"></div>
+                <div class="upload-text">Selecione os dois arquivos de uma vez</div>
+                <div class="upload-subtext">TXT de adicionais + planilha UORG (.xlsx) · clique ou arraste e solte aqui</div>
+                <div id="fileName" style="margin-top:14px; font-weight:600; color:var(--g-d); line-height:1.6;"></div>
             </div>
+            <div class="xlsx-status" id="xlsxStatus"></div>
             <div style="text-align:center; margin-top:18px;">
                 <button class="btn btn-primary hidden" id="processBtn" onclick="processFile()">🔍 Processar Arquivo</button>
             </div>
@@ -587,6 +593,8 @@
                                 <th>Tipo</th>
                                 <th>Matrícula</th>
                                 <th>CPF</th>
+                                <th>Servidor</th>
+                                <th>Exercício</th>
                                 <th>Cód.</th>
                                 <th>Descrição</th>
                                 <th>Data Início</th>
@@ -619,6 +627,189 @@
         let linhaCheckState = []; // boolean para cada registro
         let ajustesMinutos = []; // minutos de ajuste por linha (positivo = acrescenta, negativo = subtrai)
 
+        let servidoresMap = new Map(); // últimos 7 dígitos da matrícula -> {nome, exercicio, exercicioCod}
+
+        function escHtml(t) {
+            return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        // Normaliza número de matrícula (aceita texto, número e notação científica)
+        function soDigitos(m) {
+            let v = String(m == null ? '' : m).trim();
+            if (/^[\d.,]+e[+-]?\d+$/i.test(v)) {
+                const n = Number(v.replace(',', '.'));
+                if (isFinite(n)) v = BigInt(Math.round(n)).toString();
+            }
+            return v.replace(/\D/g, '');
+        }
+
+        // A matrícula do TXT tem 7 dígitos; na planilha vem com o prefixo do órgão (12 dígitos).
+        function chaveMatricula(m) {
+            const d = soDigitos(m);
+            return d.length > 7 ? d.slice(-7) : d.padStart(7, '0');
+        }
+
+        const cacheBusca = new Map();
+        function buscarServidor(matricula) {
+            const d = soDigitos(matricula);
+            if (!d) return null;
+            let r = servidoresMap.get(chaveMatricula(d));
+            if (r) return r;
+            if (cacheBusca.has(d)) return cacheBusca.get(d);
+            const semZeros = d.replace(/^0+/, '');
+            r = null;
+            if (semZeros.length >= 5) {
+                for (const v of servidoresMap.values()) {
+                    if (v.matriculaCompleta.endsWith(semZeros)) { r = v; break; }
+                }
+            }
+            cacheBusca.set(d, r);
+            return r;
+        }
+
+        // ── Leitor de XLSX sem dependências (ZIP + XML), funciona offline ──
+        async function inflarRaw(bytes) {
+            const ds = new DecompressionStream('deflate-raw');
+            const stream = new Blob([bytes]).stream().pipeThrough(ds);
+            return new Uint8Array(await new Response(stream).arrayBuffer());
+        }
+
+        async function lerZip(buf) {
+            const dv = new DataView(buf);
+            const u8 = new Uint8Array(buf);
+            let eocd = -1;
+            for (let i = buf.byteLength - 22; i >= 0; i--) {
+                if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+            }
+            if (eocd < 0) throw new Error('Arquivo não é um XLSX válido.');
+            const total = dv.getUint16(eocd + 10, true);
+            let pos = dv.getUint32(eocd + 16, true);
+            const dec = new TextDecoder('utf-8');
+            const files = {};
+            for (let n = 0; n < total; n++) {
+                if (dv.getUint32(pos, true) !== 0x02014b50) break;
+                const metodo = dv.getUint16(pos + 10, true);
+                const compSize = dv.getUint32(pos + 20, true);
+                const nameLen = dv.getUint16(pos + 28, true);
+                const extraLen = dv.getUint16(pos + 30, true);
+                const comLen = dv.getUint16(pos + 32, true);
+                const off = dv.getUint32(pos + 42, true);
+                const nome = dec.decode(u8.subarray(pos + 46, pos + 46 + nameLen));
+                const lNome = dv.getUint16(off + 26, true);
+                const lExtra = dv.getUint16(off + 28, true);
+                const ini = off + 30 + lNome + lExtra;
+                files[nome] = { metodo, dados: u8.subarray(ini, ini + compSize) };
+                pos += 46 + nameLen + extraLen + comLen;
+            }
+            const ler = async (nome) => {
+                const f = files[nome];
+                if (!f) return null;
+                const bytes = f.metodo === 0 ? f.dados : await inflarRaw(f.dados);
+                return dec.decode(bytes);
+            };
+            return { files, ler };
+        }
+
+        function colIdx(ref) {
+            const letras = (ref.match(/^[A-Z]+/) || [''])[0];
+            let n = 0;
+            for (const ch of letras) n = n * 26 + (ch.charCodeAt(0) - 64);
+            return n - 1;
+        }
+
+        async function lerXlsx(buf) {
+            const zip = await lerZip(buf);
+            const parser = new DOMParser();
+            const ss = [];
+            const ssXml = await zip.ler('xl/sharedStrings.xml');
+            if (ssXml) {
+                const doc = parser.parseFromString(ssXml, 'application/xml');
+                doc.querySelectorAll('si').forEach(si => {
+                    ss.push(Array.from(si.getElementsByTagName('t')).map(t => t.textContent).join(''));
+                });
+            }
+            const nomeSheet = Object.keys(zip.files)
+                .filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+                .sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]))[0];
+            if (!nomeSheet) throw new Error('Nenhuma planilha encontrada no arquivo.');
+            const doc = parser.parseFromString(await zip.ler(nomeSheet), 'application/xml');
+            const linhas = [];
+            doc.querySelectorAll('row').forEach(row => {
+                const arr = [];
+                row.querySelectorAll('c').forEach(c => {
+                    const t = c.getAttribute('t');
+                    let val = '';
+                    if (t === 'inlineStr') {
+                        val = Array.from(c.getElementsByTagName('t')).map(x => x.textContent).join('');
+                    } else {
+                        const v = c.getElementsByTagName('v')[0];
+                        val = v ? v.textContent : '';
+                        if (t === 's') val = ss[parseInt(val, 10)] || '';
+                    }
+                    arr[colIdx(c.getAttribute('r') || 'A1')] = val;
+                });
+                linhas.push(arr);
+            });
+            return linhas;
+        }
+
+        function lerCsv(texto) {
+            const linhas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!linhas.length) return [];
+            const sep = (linhas[0].match(/;/g) || []).length >= (linhas[0].match(/,/g) || []).length ? ';' : ',';
+            return linhas.map(l => l.split(sep).map(c => c.replace(/^"|"$/g, '').trim()));
+        }
+
+        function montarServidores(linhas) {
+            let hdr = -1;
+            for (let i = 0; i < Math.min(linhas.length, 15); i++) {
+                const c = (linhas[i] || []).map(h => String(h || '').trim().toUpperCase());
+                if (c.includes('GR-MATRICULA')) { hdr = i; break; }
+            }
+            if (hdr < 0) {
+                throw new Error('Coluna GR-MATRICULA não encontrada na planilha.');
+            }
+            const cab = linhas[hdr].map(h => String(h || '').trim().toUpperCase());
+            const iMat = cab.indexOf('GR-MATRICULA');
+            const iNome = cab.indexOf('IT-NO-SERVIDOR');
+            const iExerDesc = cab.indexOf('IT-CO-UORG-EXERCICIO-SERV_DESC');
+            const iExerCod = cab.indexOf('IT-CO-UORG-EXERCICIO-SERV');
+            if (iNome < 0 || iExerDesc < 0) {
+                throw new Error('Colunas esperadas não encontradas (IT-NO-SERVIDOR, IT-CO-UORG-EXERCICIO-SERV_DESC).');
+            }
+            const mapa = new Map();
+            for (let i = hdr + 1; i < linhas.length; i++) {
+                const l = linhas[i];
+                if (!l || !l[iMat]) continue;
+                const completa = soDigitos(l[iMat]);
+                mapa.set(chaveMatricula(completa), {
+                    matriculaCompleta: completa,
+                    nome: String(l[iNome] || '').trim(),
+                    exercicio: String(l[iExerDesc] || '').trim(),
+                    exercicioCod: iExerCod >= 0 ? String(l[iExerCod] || '').trim() : ''
+                });
+            }
+            cacheBusca.clear();
+            return mapa;
+        }
+
+        function atualizarStatusXlsx() {
+            const el = document.getElementById('xlsxStatus');
+            if (!servidoresMap.size) { el.textContent = ''; return; }
+            let txt = '✅ ' + servidoresMap.size + ' servidor(es) carregado(s) da planilha.';
+            if (parsedData.length) {
+                const mats = Array.from(new Set(parsedData.map(r => r.matricula)));
+                const achados = mats.filter(m => buscarServidor(m)).length;
+                txt += ' Encontrados no TXT: ' + achados + ' de ' + mats.length + ' matrícula(s).';
+                if (achados < mats.length) {
+                    const semPar = mats.filter(m => !buscarServidor(m)).slice(0, 3).join(', ');
+                    const exPlan = Array.from(servidoresMap.values()).slice(0, 2).map(v => v.matriculaCompleta).join(', ');
+                    txt += ' ⚠️ Sem correspondência (ex.: ' + semPar + '). Na planilha, ex.: ' + exPlan + '.';
+                }
+            }
+            el.textContent = txt;
+        }
+
         const adicionaisMap = {
             '01': 'SERVEXTRNT - Adicional por Serviço Extraordinário Noturno',
             '02': 'SERVEXTRA - Adicional por Serviço Extraordinário',
@@ -632,17 +823,82 @@
             '10': 'INDENIZAÇÃO - Localidades Estratégicas'
         };
 
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            document.getElementById('fileName').textContent = '📄 ' + file.name;
-            document.getElementById('processBtn').classList.remove('hidden');
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                fileContent = e.target.result;
-            };
-            reader.readAsText(file);
+        let nomeTxt = '';
+        let nomePlanilha = '';
+
+        function atualizarNomesArquivos() {
+            const linhas = [];
+            if (nomeTxt) linhas.push('📄 TXT: ' + escHtml(nomeTxt));
+            if (nomePlanilha) linhas.push('📊 Planilha: ' + escHtml(nomePlanilha));
+            document.getElementById('fileName').innerHTML = linhas.join('<br>');
         }
+
+        // Recebe um ou vários arquivos e reconhece cada um pela extensão
+        async function handleFilesSelect(fileList) {
+            const files = Array.from(fileList || []);
+            if (!files.length) return;
+            const avisos = [];
+            for (const file of files) {
+                if (/\.txt$/i.test(file.name)) {
+                    nomeTxt = file.name;
+                    fileContent = await lerTextoArquivo(file);
+                    document.getElementById('processBtn').classList.remove('hidden');
+                } else if (/\.(xlsx|csv)$/i.test(file.name)) {
+                    await carregarPlanilha(file);
+                } else {
+                    avisos.push(file.name);
+                }
+            }
+            atualizarNomesArquivos();
+            if (avisos.length) {
+                document.getElementById('xlsxStatus').textContent =
+                    '⚠️ Arquivo(s) não reconhecido(s): ' + avisos.join(', ') + ' (use .txt, .xlsx ou .csv).';
+            }
+            // Com o TXT e a planilha presentes, processa automaticamente
+            if (fileContent && (files.length > 1 || parsedData.length)) {
+                processFile();
+            }
+            document.getElementById('fileInput').value = '';
+        }
+
+        function lerTextoArquivo(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.readAsText(file);
+            });
+        }
+
+        async function carregarPlanilha(file) {
+            const status = document.getElementById('xlsxStatus');
+            try {
+                const linhas = /\.csv$/i.test(file.name)
+                    ? lerCsv(await file.text())
+                    : await lerXlsx(await file.arrayBuffer());
+                servidoresMap = montarServidores(linhas);
+                nomePlanilha = file.name;
+                atualizarStatusXlsx();
+                if (parsedData.length) atualizarTotais();
+            } catch (err) {
+                servidoresMap = new Map();
+                nomePlanilha = '';
+                status.textContent = '⚠️ Erro ao ler a planilha: ' + err.message;
+            }
+        }
+
+        // Arrastar e soltar
+        (function () {
+            const area = document.getElementById('dropArea');
+            ['dragenter', 'dragover'].forEach(ev => area.addEventListener(ev, e => {
+                e.preventDefault();
+                area.style.borderColor = 'var(--g-d)';
+            }));
+            ['dragleave', 'drop'].forEach(ev => area.addEventListener(ev, e => {
+                e.preventDefault();
+                area.style.borderColor = '';
+            }));
+            area.addEventListener('drop', e => handleFilesSelect(e.dataTransfer.files));
+        })();
 
         function formatCPF(cpf) {
             return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
@@ -777,12 +1033,14 @@
                     card.className = 'cpf-card';
                     const cpfFormat = cpfData.cpfFormatado;
                     const isChecked = cpfSelecionados.get(cpfFormat) !== false;
+                    const srvCard = buscarServidor(cpfData.matricula);
 
                     card.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                             <input type="checkbox" class="cpf-checkbox" data-cpf="${cpfFormat}" ${isChecked ? 'checked' : ''} onchange="onCpfCheckboxChange('${cpfFormat}', this.checked)">
                             <div class="cpf-info">
                                 <div class="cpf-number">${cpfFormat}</div>
+                                ${srvCard ? `<div class="srv-nome">${escHtml(srvCard.nome)}</div><div class="srv-exer">Exercício: ${escHtml(srvCard.exercicio || '-')}</div>` : ''}
                                 <div style="margin-top: 4px; color: var(--t2); font-size: 0.9rem;">
                                     Matrícula: <strong>${cpfData.matricula}</strong>
                                     <span class="registers-count">${cpfData.registros} registro${cpfData.registros > 1 ? 's' : ''}</span>
@@ -849,6 +1107,9 @@
                 row.insertCell().textContent = '1';
                 row.insertCell().textContent = reg.matricula;
                 row.insertCell().textContent = reg.cpfFormatado;
+                const srv = buscarServidor(reg.matricula);
+                row.insertCell().textContent = srv ? srv.nome : '-';
+                row.insertCell().textContent = srv ? srv.exercicio : '-';
                 row.insertCell().textContent = reg.codAdicional;
                 row.insertCell().textContent = reg.descAdicional;
                 row.insertCell().textContent = reg.dataInicio;
@@ -1067,6 +1328,7 @@
 
             // Atualizar totais e renderizar
             atualizarTotais();
+            atualizarStatusXlsx();
 
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
         }
